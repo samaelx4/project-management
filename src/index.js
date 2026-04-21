@@ -1,7 +1,7 @@
 import dotenv from 'dotenv'
 import express from 'express'
 import cors from 'cors'
-
+import connectDB from './db/index.js'
 
 dotenv.config({
     path: "./.env"
@@ -21,11 +21,18 @@ app.use(cors({
     allowedHeaders: ["Content-Type","Authorization"]
 }))
 
-app.get("/",(req,res)=>{
-    res.send("hello there sam")
-})
+import healthCheckRouter from './routes/healthcheck.routes.js'
 
-app.listen(port,()=>{
-    console.log(`server is running on ${port}` )
-})
+app.use("/api/v1/healthcheck",healthCheckRouter)
 
+
+connectDB()
+    .then(()=>{
+        app.listen(port,()=>{
+            console.log(`app listening on port http://localhost:${port}`)
+        })
+    })
+    .catch((err)=>{
+        console.log("MongoDB connection error",err);
+        process.exit();
+    })
