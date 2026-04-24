@@ -1,4 +1,4 @@
-const asyncHadler = (requestHandler)=>{
+const asyncHandler = (requestHandler)=>{
     return (req,res,next)=>{
         Promise
         .resolve(requestHandler(req,res,next))
@@ -6,4 +6,4 @@ const asyncHadler = (requestHandler)=>{
     }
 }
 
-export {asyncHadler}
+export {asyncHandler}
