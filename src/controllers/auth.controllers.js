@@ -2,7 +2,7 @@ import {User} from '../models/user.models.js'
 import {ApiError} from '../utils/api-error.js'
 import {ApiResponse} from '../utils/api-response.js'
 import {asyncHandler} from '../utils/async-handler.js'
-import { emailVerificationMailgenContent, sendEmail } from '../utils/mail.js'
+import { emailVerificationMailgenContent, forgotPasswordMailgenContent, sendEmail } from '../utils/mail.js'
 
 const generateAccessandRefreshToken = async(userId)=>{
     try {
@@ -98,6 +98,7 @@ const login = asyncHandler(async(req,res)=>{
             "User logged in successfully"
         ))
 })
+
 const logoutUser = asyncHandler(async(req,res)=>{
     await User.findByIdAndUpdate(
         req.user._id,
@@ -120,5 +121,61 @@ const logoutUser = asyncHandler(async(req,res)=>{
         .clearCookie("refreshToken",options)
         .json(200,{},"User logged out succefully")
 })
+
+const forgotPasswordRequest = asyncHandler(async(req,res)=>{
+    const {email} = req.body
+    const user = await User.findOne({email})
+    if(!user){
+        throw new ApiError(404, "user not found")
+    }
+    const {unHashedToken, hashedToken, tokenExpiry} = user.generateTemporaryToken()
+    user.forgotPasswordToken = hashedToken
+    user.forgotPasswordExpiry = tokenExpiry
+
+    await user.save({validateBeforeSave: false})
+
+    await sendEmail({
+        email: user?.email,
+        subject: "password reset request",
+        mailgenContent: forgotPasswordMailgenContent(user.username,
+            `${process.env.FORGOT_PASSOWORD_REDIRECT_URL}/${unHashedToken}`
+        )
+    })
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                {},
+                "password has been sent to ur email"
+            )
+        )
+})
+
+const forgotPasswordRequest = asyncHandler(async(req,res)=>{
+    const {resetToken} = req.params
+    const {newPassword} = req.body
+    
+    let hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex")
+
+    const user = await User.findOne({
+        forgotPasswordToken: hashedToken,
+        forgotPasswordExpiry: {$gt: Date.now()}
+    })
+    if(!user){
+        throw new ApiError(489, "Token is invalid or expired")
+    }
+    
+    user.forgotPasswordToken = undefined
+    user.forgotPasswordExpiry = undefined
+    user.password = newPassword
+    await user.save({validateBeforeSave: false})
+    return res
+        .status(200)
+        .json(new ApiResponse(200,{},"password reset successfully"))
+})
+
+
 
 export {registerUser, login, logoutUser}
